@@ -1,4 +1,4 @@
-import { pusher, sessions } from "@/lib/db";
+import { pusher, sessions, Participant } from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
 
     // Update or add participant
     const participantIndex = session.participants.findIndex(
-      (p) => p.id === participantId
+      (p: Participant) => p.id === participantId
     );
     if (participantIndex >= 0) {
       session.participants[participantIndex].vote = vote;
