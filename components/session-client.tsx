@@ -8,11 +8,13 @@ import { VotingGrid } from "@/components/session/voting-grid";
 import { ResultsDisplay } from "@/components/session/results-display";
 import { useSession } from "@/hooks/use-session";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useRouter } from "next/navigation";
 
 export function SessionClient({ sessionId }: { sessionId: string }) {
   const { session, isLoading, submitVote, revealResults, startNewRound } =
     useSession(sessionId);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleVote = async (value: string) => {
     setSelectedCard(value);
@@ -29,6 +31,12 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
     await startNewRound();
     setSelectedCard(null);
     toast.success("New round started!");
+  };
+
+  const copySessionLink = () => {
+    const url = `${window.location.origin}/session/${sessionId}`;
+    navigator.clipboard.writeText(url);
+    // You might want to add a toast notification here
   };
 
   if (isLoading) {
@@ -85,6 +93,24 @@ export function SessionClient({ sessionId }: { sessionId: string }) {
         {session.showResults && (
           <ResultsDisplay participants={session.participants} />
         )}
+
+        <div className="mt-4 p-4 border rounded-lg">
+          <h3 className="text-lg font-semibold mb-2">Invite Others</h3>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              readOnly
+              value={`${window.location.origin}/session/${sessionId}`}
+              className="flex-1 p-2 border rounded"
+            />
+            <button
+              onClick={copySessionLink}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Copy Link
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

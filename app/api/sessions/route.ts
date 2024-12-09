@@ -1,48 +1,46 @@
-import { NextResponse } from 'next/server'
-import { v4 as uuidv4 } from 'uuid'
-import type { Session } from '@/lib/types'
-
-// In-memory store for demo purposes
-const sessions = new Map<string, Session>()
-
-// Initialize demo session
-const demoSession: Session = {
-  id: 'demo',
-  name: 'Demo Session',
-  participants: [],
-  showResults: false,
-}
-sessions.set('demo', demoSession)
+import { pusher, sessions, demoSession } from "@/lib/db";
+import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-  const { name } = await request.json()
-  const sessionId = uuidv4()
-  
-  const session: Session = {
-    id: sessionId,
-    name,
-    participants: [],
-    showResults: false,
+  try {
+    const { id, name } = await request.json();
+    console.log("Creating session:", { id, name });
+
+    const newSession = {
+      name,
+      participants: [],
+      showResults: false,
+    };
+    sessions.set(id, newSession);
+    console.log("Sessions map:", Array.from(sessions.entries()));
+
+    await pusher.trigger(`session-${id}`, "session-created", newSession);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Session creation error:", error);
+    return NextResponse.json(
+      { error: "Failed to create session" },
+      { status: 500 }
+    );
   }
-  
-  sessions.set(sessionId, session)
-  
-  return NextResponse.json({ sessionId })
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const sessionId = searchParams.get('sessionId')
-  
+  const { searchParams } = new URL(request.url);
+  const sessionId = searchParams.get("sessionId");
+  console.log("Getting session:", sessionId);
+  console.log("Available sessions:", Array.from(sessions.entries()));
+
   if (!sessionId) {
-    return NextResponse.json({ error: 'Session ID required' }, { status: 400 })
+    return NextResponse.json({ error: "Session ID required" }, { status: 400 });
   }
-  
-  const session = sessions.get(sessionId)
+
+  const session = sessions.get(sessionId);
   if (!session) {
     // Return demo session for static export
-    return NextResponse.json(demoSession)
+    return NextResponse.json(demoSession);
   }
-  
-  return NextResponse.json(session)
+
+  return NextResponse.json(session);
 }
