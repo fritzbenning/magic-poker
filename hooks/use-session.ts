@@ -1,77 +1,64 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react'
-import { v4 as uuidv4 } from 'uuid'
-import type { Session } from '@/lib/types'
+import { useState, useEffect } from "react";
+import Pusher from "pusher-js";
+
+const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+  cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+});
+
+interface Participant {
+  id: string;
+  name: string;
+  vote: string | null;
+}
+
+interface Session {
+  name: string;
+  participants: Participant[];
+  showResults: boolean;
+}
 
 export function useSession(sessionId: string) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [participantId] = useState(() => uuidv4())
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSession = async () => {
-      try {
-        const response = await fetch(`/api/sessions?sessionId=${sessionId}`)
-        if (!response.ok) throw new Error('Failed to fetch session')
-        const data = await response.json()
-        setSession(data)
-      } catch (error) {
-        console.error('Error fetching session:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
+    // Subscribe to session updates
+    const channel = pusher.subscribe(`session-${sessionId}`);
 
-    fetchSession()
-  }, [sessionId])
+    channel.bind("session-update", (data: Session) => {
+      setSession(data);
+    });
+
+    // Initial session fetch
+    fetch(`/api/sessions?sessionId=${sessionId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setSession(data);
+        setIsLoading(false);
+      });
+
+    return () => {
+      pusher.unsubscribe(`session-${sessionId}`);
+    };
+  }, [sessionId]);
 
   const submitVote = async (vote: string) => {
-    try {
-      const response = await fetch(`/api/sessions/${sessionId}/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ vote }),
-      })
-      
-      if (!response.ok) throw new Error('Failed to submit vote')
-      
-      // Update local state
-      setSession((prev) => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          participants: [
-            ...prev.participants.filter(p => p.id !== participantId),
-            { id: participantId, name: '', vote }
-          ],
-        }
-      })
-    } catch (error) {
-      console.error('Error submitting vote:', error)
-    }
-  }
+    const participantId =
+      localStorage.getItem(`participant-${sessionId}`) || crypto.randomUUID();
+    localStorage.setItem(`participant-${sessionId}`, participantId);
 
-  const revealResults = async () => {
-    setSession((prev) => prev ? { ...prev, showResults: true } : prev)
-  }
+    await fetch(`/api/sessions/vote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        participantId,
+        vote,
+      }),
+    });
+  };
 
-  const startNewRound = async () => {
-    setSession((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        showResults: false,
-        participants: prev.participants.map((p) => ({ ...p, vote: null })),
-      }
-    })
-  }
-
-  return {
-    session,
-    isLoading,
-    submitVote,
-    revealResults,
-    startNewRound,
-  }
+  return { session, isLoading, submitVote };
 }
